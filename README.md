@@ -24,8 +24,8 @@ func tAny() {
 	log.Println("开始")
 	n := noGcStaticMap.New()
 	//增加
-	n.Set([]byte(""), []byte("空"))                    //键为空
-	n.Set([]byte(strconv.Itoa(1000000)), []byte("空")) //值为空
+	n.Set([]byte(""), []byte("键为空的值"))                    //键为空
+	n.Set([]byte(strconv.Itoa(1000000)), []byte("")) //值为空
 	for i := 0; i < 1000; i++ {
 		n.Set([]byte(strconv.Itoa(i)), []byte(strconv.Itoa(i)))
 	}
@@ -62,4 +62,5 @@ func tInt() {
 	}
 	log.Println("完成查询")
 }
+
 ```
