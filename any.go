@@ -21,7 +21,7 @@ type NoGcStaticMap struct {
 	bw                  *bufio.Writer
 	tempFile            *os.File               //硬盘上的临时文件
 	tempFileName        string                 //临时文件名
-	data                []byte                 //用于实际存储键值的数据，对外暴露，允许
+	Data                []byte                 //存储键值的内容;对外暴露,在部分对于性能要求苛刻的场景中，可以直接在这个地方把值反序列化为原有结构，减少数据复制过程
 	index               [512]map[uint64]uint32 //值为切片data []byte中的某个位置,此索引存储无hash冲突的key的hash值以及有hash冲突但是是第1次出现的key的hash值
 	mapForHashCollision map[string]uint32      //值为切片data []byte中的某个位置,string为存放有hash冲突的第2次或2次以上出现的key,这个map一般来说是非常小的
 }
@@ -99,15 +99,17 @@ func (n *NoGcStaticMap) GetDataBeginPosOfKVPair(k []byte) (uint32, bool) {
 }
 
 //从内存中的某个位置取出键值对中值的数据,警告,传入的dataBeginPos必须是真实有效的，否则有可能会数据越界
+//注意，any类型和inter类型中提取val的方式是有所差异的，由于data对外暴露，若用户为了性能考量自行提取值
+//那么需要注意,对于inter类型,data中是不存储键信息的,any类型则会存储键的信息
 func (n *NoGcStaticMap) GetValFromDataBeginPosOfKVPairUnSafe(dataBeginPos int) (v []byte) {
 	//读取键值的长度 写得能懂直接从fastcache复制过来
-	kvLenBuf := n.data[dataBeginPos : dataBeginPos+4]
+	kvLenBuf := n.Data[dataBeginPos : dataBeginPos+4]
 	keyLen := (uint64(kvLenBuf[0]) << 8) | uint64(kvLenBuf[1])
 	valLen := (uint64(kvLenBuf[2]) << 8) | uint64(kvLenBuf[3])
 	//读取键的内容，并判断键是否相同
 	dataBeginPos = dataBeginPos + 4 + int(keyLen)
 	v = make([]byte, 0, int(valLen))
-	v = append(v, n.data[dataBeginPos:dataBeginPos+int(valLen)]...)
+	v = append(v, n.Data[dataBeginPos:dataBeginPos+int(valLen)]...)
 	return v
 }
 
@@ -154,8 +156,8 @@ func (n *NoGcStaticMap) SetFinished() {
 	}
 	b, err := ioutil.ReadFile(n.tempFileName)
 	haserr.Panic(err)
-	n.data = make([]byte, 0, len(b))
-	n.data = append(n.data, b...)
+	n.Data = make([]byte, 0, len(b))
+	n.Data = append(n.Data, b...)
 	//暂时只能清空了，不知道如何删除
 	err = os.Remove(n.tempFileName)
 	haserr.Panic(err)
@@ -164,12 +166,12 @@ func (n *NoGcStaticMap) SetFinished() {
 //从内存中读取相应数据
 func (n *NoGcStaticMap) read(k []byte, dataBeginPos int) (v []byte, exist bool) {
 	//读取键值的长度 写得能懂直接从fastcache复制过来
-	kvLenBuf := n.data[dataBeginPos : dataBeginPos+4]
+	kvLenBuf := n.Data[dataBeginPos : dataBeginPos+4]
 	keyLen := (uint64(kvLenBuf[0]) << 8) | uint64(kvLenBuf[1])
 	valLen := (uint64(kvLenBuf[2]) << 8) | uint64(kvLenBuf[3])
 	//读取键的内容，并判断键是否相同
 	dataBeginPos = dataBeginPos + 4
-	if string(k) != string(n.data[dataBeginPos:dataBeginPos+int(keyLen)]) {
+	if string(k) != string(n.Data[dataBeginPos:dataBeginPos+int(keyLen)]) {
 		return v, false
 	}
 	//读取值并返回
@@ -178,7 +180,7 @@ func (n *NoGcStaticMap) read(k []byte, dataBeginPos int) (v []byte, exist bool) 
 	}
 	dataBeginPos = dataBeginPos + int(keyLen)
 	v = make([]byte, 0, int(valLen))
-	v = append(v, n.data[dataBeginPos:dataBeginPos+int(valLen)]...)
+	v = append(v, n.Data[dataBeginPos:dataBeginPos+int(valLen)]...)
 	return v, true
 }
 

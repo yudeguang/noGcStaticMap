@@ -20,7 +20,7 @@ type NoGcStaticMapInt struct {
 	bw           *bufio.Writer
 	tempFile     *os.File            //硬盘上的临时文件
 	tempFileName string              //临时文件名
-	data         []byte              //用于实际存储键值的数据
+	Data         []byte              //存储值的内容;对外暴露,在部分对于性能要求苛刻的场景中，可以直接在这个地方把值反序列化为原有结构，减少数据复制过程
 	index        [512]map[int]uint32 //值为切片data []byte中的某个位置
 }
 
@@ -74,6 +74,8 @@ func (n *NoGcStaticMapInt) GetDataBeginPosOfKVPair(k int) (uint32, bool) {
 }
 
 //从内存中的某个位置取出键值对中值的数据,警告,传入的dataBeginPos必须是真实有效的，否则有可能会数据越界
+//注意，any类型和inter类型中提取val的方式是有所差异的，由于data对外暴露，若用户为了性能考量自行提取值
+//那么需要注意,对于inter类型,data中是不存储键信息的,any类型则会存储键的信息
 func (n *NoGcStaticMapInt) GetValFromDataBeginPosOfKVPairUnSafe(dataBeginPos int) (v []byte) {
 	return n.read(dataBeginPos)
 }
@@ -116,8 +118,8 @@ func (n *NoGcStaticMapInt) SetFinished() {
 	}
 	b, err := ioutil.ReadFile(n.tempFileName)
 	haserr.Panic(err)
-	n.data = make([]byte, 0, len(b))
-	n.data = append(n.data, b...)
+	n.Data = make([]byte, 0, len(b))
+	n.Data = append(n.Data, b...)
 	err = os.Remove(n.tempFileName)
 	haserr.Panic(err)
 }
@@ -125,7 +127,7 @@ func (n *NoGcStaticMapInt) SetFinished() {
 //从内存中读取相应数据
 func (n *NoGcStaticMapInt) read(dataBeginPos int) (v []byte) {
 	//读取键值的长度 写得能懂直接从fastcache复制过来
-	kvLenBuf := n.data[dataBeginPos : dataBeginPos+2]
+	kvLenBuf := n.Data[dataBeginPos : dataBeginPos+2]
 	valLen := (uint64(kvLenBuf[0]) << 8) | uint64(kvLenBuf[1])
 	//读取键的内容，并判断键是否相同
 	dataBeginPos = dataBeginPos + 2
@@ -134,7 +136,7 @@ func (n *NoGcStaticMapInt) read(dataBeginPos int) (v []byte) {
 		return nil
 	}
 	v = make([]byte, 0, int(valLen))
-	v = append(v, n.data[dataBeginPos:dataBeginPos+int(valLen)]...)
+	v = append(v, n.Data[dataBeginPos:dataBeginPos+int(valLen)]...)
 	return v
 }
 
