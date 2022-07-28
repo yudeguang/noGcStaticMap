@@ -7,6 +7,8 @@ package noGcStaticMap
 
 import (
 	"bufio"
+	"bytes"
+	"encoding/binary"
 	"github.com/cespare/xxhash"
 	"github.com/yudeguang/haserr"
 	"io/ioutil"
@@ -15,7 +17,8 @@ import (
 	"time"
 )
 
-type NoGcStaticMapAny struct {
+//其它类型，值最长为65535，此类型无此限制
+type NoGcStaticMapHuge struct {
 	setFinished         bool //是否完成存储
 	dataBeginPos        int  //游标，记录位置
 	bw                  *bufio.Writer
@@ -26,9 +29,9 @@ type NoGcStaticMapAny struct {
 	mapForHashCollision map[string]uint32      //值为切片data []byte中的某个位置,string为存放有hash冲突的第2次或2次以上出现的key,这个map一般来说是非常小的
 }
 
-//初始化
-func New() *NoGcStaticMapAny {
-	var n NoGcStaticMapAny
+//初始化 适用于部分K,V超长的情况
+func NewHuge() *NoGcStaticMapHuge {
+	var n NoGcStaticMapHuge
 	n.mapForHashCollision = make(map[string]uint32)
 	for i := range n.index {
 		n.index[i] = make(map[uint64]uint32)
@@ -43,7 +46,7 @@ func New() *NoGcStaticMapAny {
 }
 
 //取出数据
-func (n *NoGcStaticMapAny) Get(k []byte) (v []byte, exist bool) {
+func (n *NoGcStaticMapHuge) Get(k []byte) (v []byte, exist bool) {
 	if !n.setFinished {
 		panic("cant't Get before SetFinished")
 	}
@@ -65,7 +68,7 @@ func (n *NoGcStaticMapAny) Get(k []byte) (v []byte, exist bool) {
 }
 
 //取出数据,以string的方式
-func (n *NoGcStaticMapAny) GetString(k string) (v string, exist bool) {
+func (n *NoGcStaticMapHuge) GetString(k string) (v string, exist bool) {
 	vbyte, exist := n.Get([]byte(k))
 	if exist {
 		return string(vbyte), true
@@ -74,7 +77,7 @@ func (n *NoGcStaticMapAny) GetString(k string) (v string, exist bool) {
 }
 
 //取出键值对在数据中存储的开始位置
-func (n *NoGcStaticMapAny) GetDataBeginPosOfKVPair(k []byte) (uint32, bool) {
+func (n *NoGcStaticMapHuge) GetDataBeginPosOfKVPair(k []byte) (uint32, bool) {
 	if !n.setFinished {
 		panic("cant't Get before SetFinished")
 	}
@@ -101,7 +104,7 @@ func (n *NoGcStaticMapAny) GetDataBeginPosOfKVPair(k []byte) (uint32, bool) {
 //从内存中的某个位置取出键值对中值的数据,警告,传入的dataBeginPos必须是真实有效的，否则有可能会数据越界
 //注意，any类型和inter类型中提取val的方式是有所差异的，由于data对外暴露，若用户为了性能考量自行提取值
 //那么需要注意,对于inter类型,data中是不存储键信息的,any类型则会存储键的信息
-func (n *NoGcStaticMapAny) GetValFromDataBeginPosOfKVPairUnSafe(dataBeginPos int) (v []byte) {
+func (n *NoGcStaticMapHuge) GetValFromDataBeginPosOfKVPairUnSafe(dataBeginPos int) (v []byte) {
 	//读取键值的长度 写得能懂直接从fastcache复制过来
 	kvLenBuf := n.Data[dataBeginPos : dataBeginPos+4]
 	keyLen := (uint64(kvLenBuf[0]) << 8) | uint64(kvLenBuf[1])
@@ -114,17 +117,13 @@ func (n *NoGcStaticMapAny) GetValFromDataBeginPosOfKVPairUnSafe(dataBeginPos int
 }
 
 //增加数据
-func (n *NoGcStaticMapAny) Set(k, v []byte) {
+func (n *NoGcStaticMapHuge) Set(k, v []byte) {
 	//键值设置完之后，不允许再添加
 	if n.setFinished {
 		panic("can't Set after SetFinished")
 	}
 	h := xxhash.Sum64(k)
 	idx := h % 512
-	//判断键值的长度，不允许太长
-	if len(k) > 65535 || len(v) > 65535 {
-		panic("k or v is too long,The maximum is 65535")
-	}
 	//处理hash碰撞问题
 	_, exist := n.index[idx][h]
 	if exist {
@@ -141,20 +140,18 @@ func (n *NoGcStaticMapAny) Set(k, v []byte) {
 }
 
 //增加数据,以string的方式
-func (n *NoGcStaticMapAny) SetString(k, v string) {
+func (n *NoGcStaticMapHuge) SetString(k, v string) {
 	n.Set([]byte(k), []byte(v))
 }
 
-
-
-//从内存中读取相应数据
-func (n *NoGcStaticMapAny) read(k []byte, dataBeginPos int) (v []byte, exist bool) {
+//从内存中读取相应数据 注意 K,V长度各自占4个字节
+func (n *NoGcStaticMapHuge) read(k []byte, dataBeginPos int) (v []byte, exist bool) {
 	//读取键值的长度 写得能懂直接从fastcache复制过来
-	kvLenBuf := n.Data[dataBeginPos : dataBeginPos+4]
-	keyLen := (uint64(kvLenBuf[0]) << 8) | uint64(kvLenBuf[1])
-	valLen := (uint64(kvLenBuf[2]) << 8) | uint64(kvLenBuf[3])
-	//读取键的内容，并判断键是否相同
+	keyLen := binary.LittleEndian.Uint32(n.Data[dataBeginPos:dataBeginPos+4])
 	dataBeginPos = dataBeginPos + 4
+	valLen :=binary.LittleEndian.Uint32(n.Data[dataBeginPos:dataBeginPos+4])
+	dataBeginPos = dataBeginPos + 4
+	//读取键的内容，并判断键是否相同
 	if string(k) != string(n.Data[dataBeginPos:dataBeginPos+int(keyLen)]) {
 		return v, false
 	}
@@ -168,17 +165,16 @@ func (n *NoGcStaticMapAny) read(k []byte, dataBeginPos int) (v []byte, exist boo
 	return v, true
 }
 
-//往文件中写入数据
-func (n *NoGcStaticMapAny) write(k, v []byte) {
-	dataLen := 4 + len(k) + len(v) //前2个字节表示K占用的空间,之后2个字节表示V的长度
-	//直接从fastcache复制过来
-	var kvLenBuf [4]byte
-	kvLenBuf[0] = byte(uint16(len(k)) >> 8)
-	kvLenBuf[1] = byte(len(k))
-	kvLenBuf[2] = byte(uint16(len(v)) >> 8)
-	kvLenBuf[3] = byte(len(v))
-	//写入Kv的长度
-	_, err := n.bw.Write(kvLenBuf[:])
+//往文件中写入数据 注意 K,V长度各自占4个字节
+func (n *NoGcStaticMapHuge) write(k, v []byte) {
+	dataLen := 8 + len(k) + len(v) //K,V各自占4个字节
+	kbuf := uint32ToByte(uint32(len(k)))
+	vbuf := uint32ToByte(uint32(len(v)))
+	//写入K的长度
+	_, err := n.bw.Write(kbuf[:])
+	haserr.Panic(err)
+	//写入v的长度
+	_, err = n.bw.Write(vbuf[:])
 	haserr.Panic(err)
 	//写入k
 	for i := range k {
@@ -195,7 +191,7 @@ func (n *NoGcStaticMapAny) write(k, v []byte) {
 }
 
 //完成存储把存储到硬盘上的文件复制到内存
-func (n *NoGcStaticMapAny) SetFinished() {
+func (n *NoGcStaticMapHuge) SetFinished() {
 	n.setFinished = true
 	err := n.bw.Flush()
 	haserr.Panic(err)
@@ -210,4 +206,12 @@ func (n *NoGcStaticMapAny) SetFinished() {
 	//暂时只能清空了，不知道如何删除
 	err = os.Remove(n.tempFileName)
 	haserr.Panic(err)
+}
+
+//把INT转换成BYTE
+func uint32ToByte(num uint32) []byte {
+	var buffer bytes.Buffer
+	err := binary.Write(&buffer, binary.LittleEndian, num)
+	haserr.Fatal(err)
+	return buffer.Bytes()
 }

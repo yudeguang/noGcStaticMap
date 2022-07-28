@@ -106,22 +106,7 @@ func (n *NoGcStaticMapUint32) SetString(k uint32, v string) {
 	n.Set(k, []byte(v))
 }
 
-//完成存储把存储到硬盘上的文件复制到内存
-func (n *NoGcStaticMapUint32) SetFinished() {
-	n.setFinished = true
-	err := n.bw.Flush()
-	haserr.Panic(err)
-	if n.tempFile != nil {
-		err = n.tempFile.Close()
-		haserr.Panic(err)
-	}
-	b, err := ioutil.ReadFile(n.tempFileName)
-	haserr.Panic(err)
-	n.Data = make([]byte, 0, len(b))
-	n.Data = append(n.Data, b...)
-	err = os.Remove(n.tempFileName)
-	haserr.Panic(err)
-}
+
 
 //从内存中读取相应数据
 func (n *NoGcStaticMapUint32) read(dataBeginPos int) (v []byte) {
@@ -155,4 +140,21 @@ func (n *NoGcStaticMapUint32) write(v []byte) {
 	}
 	//写完了，移动游标
 	n.dataBeginPos = n.dataBeginPos + dataLen
+}
+
+//完成存储把存储到硬盘上的文件复制到内存
+func (n *NoGcStaticMapUint32) SetFinished() {
+	n.setFinished = true
+	err := n.bw.Flush()
+	haserr.Panic(err)
+	if n.tempFile != nil {
+		err = n.tempFile.Close()
+		haserr.Panic(err)
+	}
+	b, err := ioutil.ReadFile(n.tempFileName)
+	haserr.Panic(err)
+	n.Data = make([]byte, 0, len(b))
+	n.Data = append(n.Data, b...)
+	err = os.Remove(n.tempFileName)
+	haserr.Panic(err)
 }

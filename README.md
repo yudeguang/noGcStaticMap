@@ -7,7 +7,7 @@
 package main
 
 import (
-	"github.com/yudeguang/noGcStaticMap"
+	"./noGcStaticMap"
 	"log"
 	"strconv"
 )
@@ -30,13 +30,13 @@ func tAny() {
 	//加载完成 加载完成后不允许再加载 未加载完成前，不允许查询
 	n.SetFinished()
 	//查询键为空
-	val, exist := n.GetString([]byte(""))
+	val, exist := n.GetString("")
 	log.Println("key:", "", "值:", val, exist)
 	//查询键为空
-	val, exist = n.GetString([]byte(strconv.Itoa(1000000)))
+	val, exist = n.GetString(strconv.Itoa(1000000))
 	log.Println("key:", 1000000, "值:", val, exist)
 	for i := 0; i < 10; i++ {
-		val, exist = n.GetString([]byte(strconv.Itoa(i)))
+		val, exist = n.GetString(strconv.Itoa(i))
 		log.Println("key:", i, "值:", val, exist)
 	}
 	log.Println("完成查询")
@@ -60,5 +60,4 @@ func tInt() {
 	}
 	log.Println("完成查询")
 }
-
 ```
