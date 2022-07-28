@@ -24,7 +24,7 @@ type NoGcStaticMapUint32 struct {
 	index        [512]map[uint32]uint32 //值为切片data []byte中的某个位置
 }
 
-//初始化
+//初始化 键的类型为int32,值的最大长度为65535，与默认类型相比，速度稍快，稍微节省存储空间
 func NewUint32() *NoGcStaticMapUint32 {
 	var n NoGcStaticMapUint32
 	for i := range n.index {

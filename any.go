@@ -26,8 +26,8 @@ type NoGcStaticMapAny struct {
 	mapForHashCollision map[string]uint32      //值为切片data []byte中的某个位置,string为存放有hash冲突的第2次或2次以上出现的key,这个map一般来说是非常小的
 }
 
-//初始化
-func New() *NoGcStaticMapAny {
+//初始化 默认类型,键值的最大长度为65535
+func NewDefault() *NoGcStaticMapAny {
 	var n NoGcStaticMapAny
 	n.mapForHashCollision = make(map[string]uint32)
 	for i := range n.index {

@@ -29,7 +29,7 @@ type NoGcStaticMapHuge struct {
 	mapForHashCollision map[string]uint32      //值为切片data []byte中的某个位置,string为存放有hash冲突的第2次或2次以上出现的key,这个map一般来说是非常小的
 }
 
-//初始化 适用于部分K,V超长的情况
+//初始化 对键值的长度不做限制，除非是存储值的长度超长的情况，否则不建议使用此类型，因为会占用更多的空间
 func NewHuge() *NoGcStaticMapHuge {
 	var n NoGcStaticMapHuge
 	n.mapForHashCollision = make(map[string]uint32)
