@@ -7,7 +7,7 @@
 package main
 
 import (
-	"./noGcStaticMap"
+	"github.com/yudeguang/noGcStaticMap"
 	"log"
 	"strconv"
 )
