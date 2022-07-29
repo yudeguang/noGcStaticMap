@@ -7,17 +7,22 @@ package noGcStaticMap
 
 import (
 	"bufio"
+	"bytes"
+	"encoding/binary"
+	"fmt"
 	"github.com/cespare/xxhash"
-	"github.com/yudeguang/haserr"
 	"io/ioutil"
 	"os"
+	"runtime"
 	"strconv"
+	"strings"
 	"time"
 )
 
 type NoGcStaticMapAny struct {
 	setFinished         bool //是否完成存储
 	dataBeginPos        int  //游标，记录位置
+	len                 int  //记录键值对个数
 	bw                  *bufio.Writer
 	tempFile            *os.File               //硬盘上的临时文件
 	tempFileName        string                 //临时文件名
@@ -33,11 +38,18 @@ func NewDefault() *NoGcStaticMapAny {
 	for i := range n.index {
 		n.index[i] = make(map[uint64]uint32)
 	}
-	//创建用于读写的临时文件
+	//创建用于读写的临时文件 同一程序中同时初始化，可能会产生时间相同的问题，需要保证文件名唯一
 	var err error
-	n.tempFileName = strconv.Itoa(int(time.Now().UnixNano())) + ".NoGcStaticMap"
+	for {
+		n.tempFileName = strconv.Itoa(int(time.Now().UnixNano())) + ".NoGcStaticMap"
+		if fileExist(n.tempFileName) {
+			continue
+		} else {
+			break
+		}
+	}
 	n.tempFile, err = os.Create(n.tempFileName)
-	haserr.Panic(err)
+	haserrPanic(err)
 	n.bw = bufio.NewWriterSize(n.tempFile, 40960)
 	return &n
 }
@@ -115,6 +127,7 @@ func (n *NoGcStaticMapAny) GetValFromDataBeginPosOfKVPairUnSafe(dataBeginPos int
 
 //增加数据
 func (n *NoGcStaticMapAny) Set(k, v []byte) {
+	n.len = n.len + 1
 	//键值设置完之后，不允许再添加
 	if n.setFinished {
 		panic("can't Set after SetFinished")
@@ -144,8 +157,6 @@ func (n *NoGcStaticMapAny) Set(k, v []byte) {
 func (n *NoGcStaticMapAny) SetString(k, v string) {
 	n.Set([]byte(k), []byte(v))
 }
-
-
 
 //从内存中读取相应数据
 func (n *NoGcStaticMapAny) read(k []byte, dataBeginPos int) (v []byte, exist bool) {
@@ -179,16 +190,16 @@ func (n *NoGcStaticMapAny) write(k, v []byte) {
 	kvLenBuf[3] = byte(len(v))
 	//写入Kv的长度
 	_, err := n.bw.Write(kvLenBuf[:])
-	haserr.Panic(err)
+	haserrPanic(err)
 	//写入k
 	for i := range k {
 		err = n.bw.WriteByte(k[i])
-		haserr.Panic(err)
+		haserrPanic(err)
 	}
 	//写入V
 	for i := range v {
 		err = n.bw.WriteByte(v[i])
-		haserr.Panic(err)
+		haserrPanic(err)
 	}
 	//写完了，移动游标
 	n.dataBeginPos = n.dataBeginPos + dataLen
@@ -198,16 +209,47 @@ func (n *NoGcStaticMapAny) write(k, v []byte) {
 func (n *NoGcStaticMapAny) SetFinished() {
 	n.setFinished = true
 	err := n.bw.Flush()
-	haserr.Panic(err)
+	haserrPanic(err)
 	if n.tempFile != nil {
 		err = n.tempFile.Close()
-		haserr.Panic(err)
+		haserrPanic(err)
 	}
 	b, err := ioutil.ReadFile(n.tempFileName)
-	haserr.Panic(err)
+	haserrPanic(err)
 	n.Data = make([]byte, 0, len(b))
 	n.Data = append(n.Data, b...)
 	//暂时只能清空了，不知道如何删除
 	err = os.Remove(n.tempFileName)
-	haserr.Panic(err)
+	haserrPanic(err)
+}
+
+//返回键值对个数
+func (n *NoGcStaticMapAny) Len() int {
+	return n.len
+}
+
+//检察文件是或者目录否存在
+func fileExist(path string) bool {
+	_, err := os.Stat(path)
+	return !os.IsNotExist(err)
+}
+
+//把INT转换成BYTE
+func uint32ToByte(num uint32) []byte {
+	var buffer bytes.Buffer
+	err := binary.Write(&buffer, binary.LittleEndian, num)
+	haserrPanic(err)
+	return buffer.Bytes()
+}
+
+//判断有无错误,并返回true或者false,有错误时调用panic退出
+func haserrPanic(err error) bool {
+	if err != nil {
+		_, file, line, _ := runtime.Caller(1)
+		file = file[strings.LastIndex(file, `/`)+1:]
+		panic(fmt.Sprintf("%v,第%v行,错误类型:%v", file, line, err))
+		return true
+	} else {
+		return false
+	}
 }

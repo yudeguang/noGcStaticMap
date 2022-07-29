@@ -7,10 +7,8 @@ package noGcStaticMap
 
 import (
 	"bufio"
-	"bytes"
 	"encoding/binary"
 	"github.com/cespare/xxhash"
-	"github.com/yudeguang/haserr"
 	"io/ioutil"
 	"os"
 	"strconv"
@@ -21,6 +19,7 @@ import (
 type NoGcStaticMapHuge struct {
 	setFinished         bool //是否完成存储
 	dataBeginPos        int  //游标，记录位置
+	len                 int  //记录键值对个数
 	bw                  *bufio.Writer
 	tempFile            *os.File               //硬盘上的临时文件
 	tempFileName        string                 //临时文件名
@@ -36,11 +35,18 @@ func NewHuge() *NoGcStaticMapHuge {
 	for i := range n.index {
 		n.index[i] = make(map[uint64]uint32)
 	}
-	//创建用于读写的临时文件
+	//创建用于读写的临时文件 同一程序中同时初始化，可能会产生时间相同的问题，需要保证文件名唯一
 	var err error
-	n.tempFileName = strconv.Itoa(int(time.Now().UnixNano())) + ".NoGcStaticMap"
+	for{
+		n.tempFileName = strconv.Itoa(int(time.Now().UnixNano())) + ".NoGcStaticMap"
+		if fileExist(n.tempFileName){
+			continue
+		}else{
+			break
+		}
+	}
 	n.tempFile, err = os.Create(n.tempFileName)
-	haserr.Panic(err)
+	haserrPanic(err)
 	n.bw = bufio.NewWriterSize(n.tempFile, 40960)
 	return &n
 }
@@ -118,6 +124,7 @@ func (n *NoGcStaticMapHuge) GetValFromDataBeginPosOfKVPairUnSafe(dataBeginPos in
 
 //增加数据
 func (n *NoGcStaticMapHuge) Set(k, v []byte) {
+	n.len=n.len+1
 	//键值设置完之后，不允许再添加
 	if n.setFinished {
 		panic("can't Set after SetFinished")
@@ -172,19 +179,19 @@ func (n *NoGcStaticMapHuge) write(k, v []byte) {
 	vbuf := uint32ToByte(uint32(len(v)))
 	//写入K的长度
 	_, err := n.bw.Write(kbuf[:])
-	haserr.Panic(err)
+	haserrPanic(err)
 	//写入v的长度
 	_, err = n.bw.Write(vbuf[:])
-	haserr.Panic(err)
+	haserrPanic(err)
 	//写入k
 	for i := range k {
 		err = n.bw.WriteByte(k[i])
-		haserr.Panic(err)
+		haserrPanic(err)
 	}
 	//写入V
 	for i := range v {
 		err = n.bw.WriteByte(v[i])
-		haserr.Panic(err)
+		haserrPanic(err)
 	}
 	//写完了，移动游标
 	n.dataBeginPos = n.dataBeginPos + dataLen
@@ -194,24 +201,22 @@ func (n *NoGcStaticMapHuge) write(k, v []byte) {
 func (n *NoGcStaticMapHuge) SetFinished() {
 	n.setFinished = true
 	err := n.bw.Flush()
-	haserr.Panic(err)
+	haserrPanic(err)
 	if n.tempFile != nil {
 		err = n.tempFile.Close()
-		haserr.Panic(err)
+		haserrPanic(err)
 	}
 	b, err := ioutil.ReadFile(n.tempFileName)
-	haserr.Panic(err)
+	haserrPanic(err)
 	n.Data = make([]byte, 0, len(b))
 	n.Data = append(n.Data, b...)
 	//暂时只能清空了，不知道如何删除
 	err = os.Remove(n.tempFileName)
-	haserr.Panic(err)
+	haserrPanic(err)
 }
 
-//把INT转换成BYTE
-func uint32ToByte(num uint32) []byte {
-	var buffer bytes.Buffer
-	err := binary.Write(&buffer, binary.LittleEndian, num)
-	haserr.Fatal(err)
-	return buffer.Bytes()
+//返回键值对个数
+func (n *NoGcStaticMapHuge) Len() int {
+	return n.len
 }
+

@@ -7,7 +7,6 @@ package noGcStaticMap
 
 import (
 	"bufio"
-	"github.com/yudeguang/haserr"
 	"io/ioutil"
 	"os"
 	"strconv"
@@ -17,6 +16,7 @@ import (
 type NoGcStaticMapUint32 struct {
 	setFinished  bool //是否完成存储
 	dataBeginPos int  //游标，记录位置
+	len                 int  //记录键值对个数
 	bw           *bufio.Writer
 	tempFile     *os.File               //硬盘上的临时文件
 	tempFileName string                 //临时文件名
@@ -30,11 +30,18 @@ func NewUint32() *NoGcStaticMapUint32 {
 	for i := range n.index {
 		n.index[i] = make(map[uint32]uint32)
 	}
-	//创建用于读写的临时文件
+	//创建用于读写的临时文件 同一程序中同时初始化，可能会产生时间相同的问题，需要保证文件名唯一
 	var err error
-	n.tempFileName = strconv.Itoa(int(time.Now().UnixNano())) + ".NoGcStaticMap"
+	for{
+		n.tempFileName = strconv.Itoa(int(time.Now().UnixNano())) + ".NoGcStaticMap"
+		if fileExist(n.tempFileName){
+			continue
+		}else{
+			break
+		}
+	}
 	n.tempFile, err = os.Create(n.tempFileName)
-	haserr.Panic(err)
+	haserrPanic(err)
 	n.bw = bufio.NewWriterSize(n.tempFile, 40960)
 	return &n
 }
@@ -81,6 +88,7 @@ func (n *NoGcStaticMapUint32) GetValFromDataBeginPosOfKVPairUnSafe(dataBeginPos 
 
 //增加数据
 func (n *NoGcStaticMapUint32) Set(k uint32, v []byte) {
+	n.len=n.len+1
 	//键值设置完之后，不允许再添加
 	if n.setFinished {
 		panic("can't Set after SetFinished")
@@ -132,11 +140,11 @@ func (n *NoGcStaticMapUint32) write(v []byte) {
 	kvLenBuf[1] = byte(len(v))
 	//写入v的长度
 	_, err := n.bw.Write(kvLenBuf[:])
-	haserr.Panic(err)
+	haserrPanic(err)
 	//写入V
 	for i := range v {
 		err = n.bw.WriteByte(v[i])
-		haserr.Panic(err)
+		haserrPanic(err)
 	}
 	//写完了，移动游标
 	n.dataBeginPos = n.dataBeginPos + dataLen
@@ -146,15 +154,20 @@ func (n *NoGcStaticMapUint32) write(v []byte) {
 func (n *NoGcStaticMapUint32) SetFinished() {
 	n.setFinished = true
 	err := n.bw.Flush()
-	haserr.Panic(err)
+	haserrPanic(err)
 	if n.tempFile != nil {
 		err = n.tempFile.Close()
-		haserr.Panic(err)
+		haserrPanic(err)
 	}
 	b, err := ioutil.ReadFile(n.tempFileName)
-	haserr.Panic(err)
+	haserrPanic(err)
 	n.Data = make([]byte, 0, len(b))
 	n.Data = append(n.Data, b...)
 	err = os.Remove(n.tempFileName)
-	haserr.Panic(err)
+	haserrPanic(err)
+}
+
+//返回键值对个数
+func (n *NoGcStaticMapUint32) Len() int {
+	return n.len
 }
