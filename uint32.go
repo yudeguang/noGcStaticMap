@@ -59,7 +59,7 @@ func (n *NoGcStaticMapUint32) Get(k uint32) (v []byte, exist bool) {
 	return v, false
 }
 
-//取出数据 以引用的方式取出 对于取出的值，要小心使用
+//取出数据 警告:返回的数据是hash表中值的引用，而非值的复制品，要注意不要在外部改变该返回值
 func (n *NoGcStaticMapUint32) GetUnsafe(k uint32) (v []byte, exist bool) {
 	dataBeginPos, exist := n.GetDataBeginPosOfKVPair(k)
 	if !exist {

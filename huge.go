@@ -73,7 +73,7 @@ func (n *NoGcStaticMapHuge) Get(k []byte) (v []byte, exist bool) {
 	return v, false
 }
 
-//取出数据 以引用的方式取出 对于取出的值，要小心使用
+//取出数据 警告:返回的数据是hash表中值的引用，而非值的复制品，要注意不要在外部改变该返回值
 func (n *NoGcStaticMapHuge) GetUnsafe(k []byte) (v []byte, exist bool) {
 	dataBeginPos, exist := n.GetDataBeginPosOfKVPair(k)
 	if !exist {
@@ -121,12 +121,12 @@ func (n *NoGcStaticMapHuge) GetDataBeginPosOfKVPair(k []byte) (uint32, bool) {
 //1)传入的dataBeginPos必须是真实有效的，否则有可能会数据越界;
 //2)返回的数据是hash表中值的引用，而非值的复制品，要注意不要在外部改变该返回值
 func (n *NoGcStaticMapHuge) GetValFromDataBeginPosOfKVPairUnSafe(dataBeginPos int) (v []byte) {
-	//读取键值的长度 写得能懂直接从fastcache复制过来
-	kvLenBuf := n.data[dataBeginPos : dataBeginPos+4]
-	keyLen := (uint64(kvLenBuf[0]) << 8) | uint64(kvLenBuf[1])
-	valLen := (uint64(kvLenBuf[2]) << 8) | uint64(kvLenBuf[3])
+	keyLen := binary.LittleEndian.Uint32(n.data[dataBeginPos : dataBeginPos+4])
+	dataBeginPos = dataBeginPos + 4
+	valLen := binary.LittleEndian.Uint32(n.data[dataBeginPos : dataBeginPos+4])
+	dataBeginPos = dataBeginPos + 4
 	//读取键的内容，并判断键是否相同
-	dataBeginPos = dataBeginPos + 4 + int(keyLen)
+	dataBeginPos = dataBeginPos + int(keyLen)
 	return n.data[dataBeginPos : dataBeginPos+int(valLen)]
 }
 
