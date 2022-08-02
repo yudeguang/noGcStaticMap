@@ -5,14 +5,22 @@
 对此参考fastcache等，把复杂的不利于GC的复杂map转化为基础类型的map map[uint64]uint32 用于存储索引 和 []byte用于存储实际键值。如此改造之后，基本上实现了零GC,总体而言：
 
 优点:
+
 1)几乎零GC;
+
 2)无hash碰撞问题;
+
 3)内存占用相对较小;
+
 4)提供GetUnsafe,GetValFromDataBeginPosOfKVPairUnSafe等函数以满足高性能场景的要求(不复制内容，直接取值);
+
 5)代码量非常少，适合根据自己需求做二次修改;
 
+
 缺点:
+
 1)为纯静态map，不能动态新增或删除键值对,即在键值加载完成之前，只允许新增;在键值对加载完成后，则只允许查询;
+
 
 ```go
 package main
