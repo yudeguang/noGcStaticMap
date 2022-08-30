@@ -33,8 +33,8 @@ import (
 	"strconv"
 )
 //声明成全局变量
-var m1 = noGcStaticMap.NewDefault()
-var m2 = noGcStaticMap.NewInt()
+var m1 = noGcStaticMap.NewDefault("m1")
+var m2 = noGcStaticMap.NewInt("m2")
 
 func main() {
 	log.SetFlags(log.Lshortfile | log.Ltime)
