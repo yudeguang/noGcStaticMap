@@ -7,7 +7,7 @@ import (
 
 func TestHuge(t *testing.T) {
 	var mapOffical = make(map[string]string)
-	var m = NewHuge()
+	var m = NewHuge("mapHugeForTest")
 	//set
 	for i := 0; i < 10000; i++ {
 		mapOffical[strconv.Itoa(i)] = strconv.Itoa(i)

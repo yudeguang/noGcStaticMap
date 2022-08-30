@@ -7,7 +7,7 @@ import (
 
 func TestAny(t *testing.T) {
 	var mapOffical = make(map[string]string)
-	var mapAny = NewDefault()
+	var mapAny = NewDefault("mapAnyForTest")
 	//set
 	mapAny.SetString("", "empty")
 	mapAny.SetString("empty", "")
@@ -46,6 +46,4 @@ func TestAny(t *testing.T) {
 	if valOFKeyEmpty != "empty" {
 		t.Fatalf("unexpected value obtained; got %q want %q", valOFKeyEmpty, "empty")
 	}
-	//
-
 }

@@ -11,8 +11,6 @@ import (
 	"github.com/cespare/xxhash"
 	"io/ioutil"
 	"os"
-	"strconv"
-	"time"
 )
 
 //其它类型，值最长为65535，此类型无此限制
@@ -29,25 +27,13 @@ type NoGcStaticMapHuge struct {
 }
 
 //初始化 对键值的长度不做限制，除非是存储值的长度超长的情况，否则不建议使用此类型，因为会占用更多的空间
-func NewHuge() *NoGcStaticMapHuge {
+func NewHuge(tempFileName ...string) *NoGcStaticMapHuge {
 	var n NoGcStaticMapHuge
 	n.mapForHashCollision = make(map[string]uint32)
 	for i := range n.index {
 		n.index[i] = make(map[uint64]uint32)
 	}
-	//创建用于读写的临时文件 同一程序中同时初始化，可能会产生时间相同的问题，需要保证文件名唯一
-	var err error
-	for {
-		n.tempFileName = strconv.Itoa(int(time.Now().UnixNano())) + ".NoGcStaticMap"
-		if fileExist(n.tempFileName) {
-			continue
-		} else {
-			break
-		}
-	}
-	n.tempFile, err = os.Create(n.tempFileName)
-	haserrPanic(err)
-	n.bw = bufio.NewWriterSize(n.tempFile, 40960)
+	n.tempFileName, n.tempFile,n.bw= createTempFile(tempFileName...)
 	return &n
 }
 

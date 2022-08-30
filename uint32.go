@@ -10,7 +10,6 @@ import (
 	"io/ioutil"
 	"os"
 	"strconv"
-	"time"
 )
 
 type NoGcStaticMapUint32 struct {
@@ -25,24 +24,12 @@ type NoGcStaticMapUint32 struct {
 }
 
 //初始化 键的类型为int32,值的最大长度为65535，与默认类型相比，速度稍快，稍微节省存储空间
-func NewUint32() *NoGcStaticMapUint32 {
+func NewUint32(tempFileName ...string) *NoGcStaticMapUint32 {
 	var n NoGcStaticMapUint32
 	for i := range n.index {
 		n.index[i] = make(map[uint32]uint32)
 	}
-	//创建用于读写的临时文件 同一程序中同时初始化，可能会产生时间相同的问题，需要保证文件名唯一
-	var err error
-	for {
-		n.tempFileName = strconv.Itoa(int(time.Now().UnixNano())) + ".NoGcStaticMap"
-		if fileExist(n.tempFileName) {
-			continue
-		} else {
-			break
-		}
-	}
-	n.tempFile, err = os.Create(n.tempFileName)
-	haserrPanic(err)
-	n.bw = bufio.NewWriterSize(n.tempFile, 40960)
+	n.tempFileName, n.tempFile,n.bw= createTempFile(tempFileName...)
 	return &n
 }
 

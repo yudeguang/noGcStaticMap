@@ -7,7 +7,7 @@ import (
 
 func TestUint32(t *testing.T) {
 	var mapOffical = make(map[string]string)
-	var mapAny = NewUint32()
+	var mapAny = NewUint32("mapUint32ForTest")
 	//set
 	for i := 0; i < 10000; i++ {
 		mapOffical[strconv.Itoa(i)] = strconv.Itoa(i)

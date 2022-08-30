@@ -9,14 +9,9 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
-	"fmt"
 	"github.com/cespare/xxhash"
 	"io/ioutil"
 	"os"
-	"runtime"
-	"strconv"
-	"strings"
-	"time"
 )
 
 type NoGcStaticMapAny struct {
@@ -32,25 +27,13 @@ type NoGcStaticMapAny struct {
 }
 
 //初始化 默认类型,键值的最大长度为65535
-func NewDefault() *NoGcStaticMapAny {
+func NewDefault(tempFileName ...string) *NoGcStaticMapAny {
 	var n NoGcStaticMapAny
 	n.mapForHashCollision = make(map[string]uint32)
 	for i := range n.index {
 		n.index[i] = make(map[uint64]uint32)
 	}
-	//创建用于读写的临时文件 同一程序中同时初始化，可能会产生时间相同的问题，需要保证文件名唯一
-	var err error
-	for {
-		n.tempFileName = strconv.Itoa(int(time.Now().UnixNano())) + ".NoGcStaticMap"
-		if fileExist(n.tempFileName) {
-			continue
-		} else {
-			break
-		}
-	}
-	n.tempFile, err = os.Create(n.tempFileName)
-	haserrPanic(err)
-	n.bw = bufio.NewWriterSize(n.tempFile, 40960)
+	n.tempFileName, n.tempFile,n.bw= createTempFile(tempFileName...)
 	return &n
 }
 
@@ -236,28 +219,10 @@ func (n *NoGcStaticMapAny) Len() int {
 	return n.len
 }
 
-//检察文件是或者目录否存在
-func fileExist(path string) bool {
-	_, err := os.Stat(path)
-	return !os.IsNotExist(err)
-}
-
 //把INT转换成BYTE
 func uint32ToByte(num uint32) []byte {
 	var buffer bytes.Buffer
 	err := binary.Write(&buffer, binary.LittleEndian, num)
 	haserrPanic(err)
 	return buffer.Bytes()
-}
-
-//判断有无错误,并返回true或者false,有错误时调用panic退出
-func haserrPanic(err error) bool {
-	if err != nil {
-		_, file, line, _ := runtime.Caller(1)
-		file = file[strings.LastIndex(file, `/`)+1:]
-		panic(fmt.Sprintf("%v,第%v行,错误类型:%v", file, line, err))
-		return true
-	} else {
-		return false
-	}
 }

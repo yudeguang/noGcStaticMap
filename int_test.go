@@ -4,10 +4,9 @@ import (
 	"strconv"
 	"testing"
 )
-
 func TestInt(t *testing.T) {
 	var mapOffical = make(map[string]string)
-	var mapAny = NewInt()
+	var mapAny = NewInt("mapIntForTest")
 	//set
 	for i := 0; i < 10000; i++ {
 		mapOffical[strconv.Itoa(i)] = strconv.Itoa(i)
