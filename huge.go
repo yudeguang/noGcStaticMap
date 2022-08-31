@@ -7,6 +7,7 @@ package noGcStaticMap
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/binary"
 	"github.com/cespare/xxhash"
 	"io/ioutil"
@@ -33,7 +34,7 @@ func NewHuge(tempFileName ...string) *NoGcStaticMapHuge {
 	for i := range n.index {
 		n.index[i] = make(map[uint64]uint32)
 	}
-	n.tempFileName, n.tempFile,n.bw= createTempFile(tempFileName...)
+	n.tempFileName, n.tempFile, n.bw = createTempFile(tempFileName...)
 	return &n
 }
 
@@ -147,13 +148,13 @@ func (n *NoGcStaticMapHuge) SetString(k, v string) {
 
 //从内存中读取相应数据 注意 K,V长度各自占4个字节
 func (n *NoGcStaticMapHuge) read(k []byte, dataBeginPos int) (v []byte, exist bool) {
-	//读取键值的长度 写得能懂直接从fastcache复制过来
+	//读取键值的长度
 	keyLen := binary.LittleEndian.Uint32(n.data[dataBeginPos : dataBeginPos+4])
 	dataBeginPos = dataBeginPos + 4
 	valLen := binary.LittleEndian.Uint32(n.data[dataBeginPos : dataBeginPos+4])
 	dataBeginPos = dataBeginPos + 4
 	//读取键的内容，并判断键是否相同
-	if string(k) != string(n.data[dataBeginPos:dataBeginPos+int(keyLen)]) {
+	if !bytes.Equal(k, n.data[dataBeginPos:dataBeginPos+int(keyLen)]) {
 		return v, false
 	}
 	//读取值并返回
@@ -204,7 +205,6 @@ func (n *NoGcStaticMapHuge) SetFinished() {
 	haserrPanic(err)
 	n.data = make([]byte, 0, len(b))
 	n.data = append(n.data, b...)
-	//暂时只能清空了，不知道如何删除
 	err = os.Remove(n.tempFileName)
 	haserrPanic(err)
 }

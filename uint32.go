@@ -29,7 +29,7 @@ func NewUint32(tempFileName ...string) *NoGcStaticMapUint32 {
 	for i := range n.index {
 		n.index[i] = make(map[uint32]uint32)
 	}
-	n.tempFileName, n.tempFile,n.bw= createTempFile(tempFileName...)
+	n.tempFileName, n.tempFile, n.bw = createTempFile(tempFileName...)
 	return &n
 }
 
@@ -80,7 +80,7 @@ func (n *NoGcStaticMapUint32) GetDataBeginPosOfKVPair(k uint32) (uint32, bool) {
 //1)传入的dataBeginPos必须是真实有效的，否则有可能会数据越界;
 //2)返回的数据是hash表中值的引用，而非值的复制品，要注意不要在外部改变该返回值
 func (n *NoGcStaticMapUint32) GetValFromDataBeginPosOfKVPairUnSafe(dataBeginPos int) (v []byte) {
-	//读取值的长度 写得能懂直接从fastcache复制过来
+	//读取值的长度
 	kvLenBuf := n.data[dataBeginPos : dataBeginPos+2]
 	valLen := (uint64(kvLenBuf[0]) << 8) | uint64(kvLenBuf[1])
 	dataBeginPos = dataBeginPos + 2
@@ -121,7 +121,7 @@ func (n *NoGcStaticMapUint32) SetString(k uint32, v string) {
 
 //从内存中读取相应数据
 func (n *NoGcStaticMapUint32) read(dataBeginPos int) (v []byte) {
-	//读取值的长度 写得能懂直接从fastcache复制过来
+	//读取值的长度
 	kvLenBuf := n.data[dataBeginPos : dataBeginPos+2]
 	valLen := (uint64(kvLenBuf[0]) << 8) | uint64(kvLenBuf[1])
 	dataBeginPos = dataBeginPos + 2
