@@ -23,6 +23,9 @@ https://github.com/yudeguang/noGcMap 与 https://github.com/yudeguang/noGcStatic
 
 1)为纯静态map，不能动态新增或删除键值对,即在键值加载完成之前，只允许新增;在键值对加载完成后，则只允许查询;
 
+注意：
+对于一些结构体类型，把结构体与[]byte的相互转换，可能会用到convert_help.go 文件中的StructToStr,SliceToStr以及BytesToStruct,BytesToSlice等函数，这些函数需要自己复制后改写实现。 
+
 
 ```go
 package main
@@ -33,8 +36,8 @@ import (
 	"strconv"
 )
 //声明成全局变量
-var m1 = noGcStaticMap.NewDefault("m1")
-var m2 = noGcStaticMap.NewInt("m2")
+var m1 = noGcStaticMap.NewDefault()
+var m2 = noGcStaticMap.NewInt()
 
 func main() {
 	log.SetFlags(log.Lshortfile | log.Ltime)
