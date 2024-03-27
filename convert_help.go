@@ -96,7 +96,9 @@ func BytesToStruct(data []byte) (p NoGcStructExample) {
 		if data[dataBeginPos+i] == SplitSep[0] || i == dataLen-1 {
 			if i == dataLen-1 {
 				byteBuf[byteBufDataLen] = data[dataBeginPos+i]
-				byteBufDataLen = byteBufDataLen + 1
+				if byteBuf[0] != SplitSep[0] { //说明最后一条为空
+				    byteBufDataLen = byteBufDataLen + 1
+				}
 			}
 			curField := string(byteBuf[0:byteBufDataLen])
 			//读取到SplitSep就换一个值，并且根据结构体的实际情况转换为对应的类型
